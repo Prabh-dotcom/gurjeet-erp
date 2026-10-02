@@ -33,7 +33,8 @@ router.get("/", async (req, res) => {
             brand,
             category,
             status,
-            search
+            search,
+            includeSold
         } = req.query;
 
         const filter = {};
@@ -41,6 +42,13 @@ router.get("/", async (req, res) => {
         if (status) {
 
             filter.status = status;
+
+        }
+
+        // Sold items must not appear in stock list (history stays in Sold Products)
+        else if (includeSold !== "true") {
+
+            filter.status = { $ne: "sold" };
 
         }
 

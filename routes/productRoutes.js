@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const Product = require("../models/Product");
+const Stock = require("../models/Stock");
 
 router.get("/test", (req, res) => {
     res.json({
@@ -63,7 +64,7 @@ router.post("/", async (req, res) => {
 
 router.get("/", async (req, res) => {
     try {
-        const { brand, category, search } = req.query;
+        const { brand, category, search, includeSold } = req.query;
 
         const filter = {};
 
@@ -91,6 +92,20 @@ router.get("/", async (req, res) => {
                     }
                 }
             ];
+        }
+
+        // Hide products whose IMEI is already sold
+        if (includeSold !== "true") {
+
+            const soldImeis = await Stock.find({
+                status: "sold",
+                imei: { $exists: true, $ne: null }
+            }).distinct("imei");
+
+            if (soldImeis.length) {
+                filter.imei = { $nin: soldImeis };
+            }
+
         }
 
         const products = await Product.find(filter)
