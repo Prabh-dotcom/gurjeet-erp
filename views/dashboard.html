@@ -434,7 +434,9 @@
                     </div>
 
 
-                    <canvas id="brandChart"></canvas>
+                    <div id="brandChartWrap" style="position:relative;height:300px;">
+                        <canvas id="brandChart"></canvas>
+                    </div>
 
                 </div>
 
@@ -452,13 +454,15 @@
                         class="d-flex justify-content-between align-items-center mb-3">
 
                         <h5>
-                            Purchase vs Sold
+                            Stock vs Sold
                         </h5>
 
                     </div>
 
 
-                    <canvas id="stockChart"></canvas>
+                    <div style="position:relative;height:300px;">
+                        <canvas id="stockChart"></canvas>
+                    </div>
 
                 </div>
 
@@ -1004,7 +1008,7 @@ async function loadDashboard() {
         // =============================================
 
         createStockChart(
-            purchases,
+            stocks,
             soldProducts
         );
 
@@ -1040,247 +1044,168 @@ async function loadDashboard() {
 
 function createBrandChart(stocks) {
 
+    // Brand wise units (only items that are actually in stock)
+    const brandStock = {};
 
-    const brandStock =
-        {};
+    stocks.forEach(stock => {
+        if (stock.status === "sold") return;
 
+        const brandName =
+            (stock.product && stock.product.brand && stock.product.brand.name) ||
+            "Unknown";
 
-    stocks.forEach(
-        stock => {
+        brandStock[brandName] =
+            (brandStock[brandName] || 0) + Number(stock.quantity || 0);
+    });
 
+    // Sort high -> low, drop zero rows
+    const rows = Object.entries(brandStock)
+        .filter(([, qty]) => qty > 0)
+        .sort((a, b) => b[1] - a[1]);
 
-            const product =
-                stock.product || {};
+    const labels = rows.map(r => r[0]);
+    const values = rows.map(r => r[1]);
 
+    const palette = [
+        "#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+        "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#64748b"
+    ];
 
-            const brand =
-                product.brand || {};
+    // Height grows with number of brands (min 300px) so bars never get squeezed
+    const wrap = document.getElementById("brandChartWrap");
+    wrap.style.height = Math.max(300, labels.length * 40 + 60) + "px";
 
+    const ctx = document.getElementById("brandChart").getContext("2d");
 
-            const brandName =
-                brand.name ||
-                "Unknown";
-
-
-            const quantity =
-                Number(
-                    stock.quantity || 0
-                );
-
-
-            brandStock[
-                brandName
-            ] =
-                (
-                    brandStock[
-                        brandName
-                    ] || 0
-                ) +
-                quantity;
-
-
-        }
-    );
-
-
-    const labels =
-        Object.keys(
-            brandStock
-        );
-
-
-    const values =
-        Object.values(
-            brandStock
-        );
-
-
-    const ctx =
-        document
-            .getElementById(
-                "brandChart"
-            )
-            .getContext(
-                "2d"
-            );
-
-
-    if (
-        brandChartInstance
-    ) {
-
+    if (brandChartInstance) {
         brandChartInstance.destroy();
-
     }
 
-
-    brandChartInstance =
-        new Chart(
-            ctx,
-            {
-
-                type:
-                    "bar",
-
-                data: {
-
-                    labels:
-
-                        labels.length
-                            ? labels
-                            : ["No Data"],
-
-
-                    datasets: [
-
-                        {
-
-                            label:
-                                "Stock Units",
-
-                            data:
-
-                                values.length
-                                    ? values
-                                    : [0],
-
-                            borderWidth:
-                                1
-
-                        }
-
-                    ]
-
-                },
-
-
-                options: {
-
-                    responsive:
-                        true,
-
-                    maintainAspectRatio:
-                        false,
-
-                    plugins: {
-
-                        legend: {
-
-                            display:
-                                false
-
-                        }
-
-                    },
-
-
-                    scales: {
-
-                        y: {
-
-                            beginAtZero:
-                                true
-
-                        }
-
+    brandChartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels.length ? labels : ["No Data"],
+            datasets: [{
+                label: "Stock Units",
+                data: values.length ? values : [0],
+                backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+                borderRadius: 6,
+                maxBarThickness: 28
+            }]
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: c => ` ${c.parsed.x} unit(s)`
                     }
-
                 }
-
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    grid: { color: "#eef0f4" }
+                },
+                y: {
+                    grid: { display: false }
+                }
             }
-        );
-
+        }
+    });
 }
 
 
 // =====================================================
-// PURCHASE VS SOLD CHART
+// STOCK VS SOLD CHART
 // =====================================================
 
-function createStockChart(
-    purchases,
-    soldProducts
-) {
+function createStockChart(stocks, soldProducts) {
 
+    const inStock = stocks
+        .filter(s => s.status !== "sold")
+        .reduce((t, s) => t + Number(s.quantity || 0), 0);
 
-    const totalPurchased =
-        purchases.length;
+    const sold = soldProducts
+        .filter(s => (s.status || "sold") === "sold")
+        .reduce((t, s) => t + Number(s.quantity || 1), 0);
 
+    const total = inStock + sold;
+    const isEmpty = total === 0;
 
-    const totalSold =
-        soldProducts.length;
+    const ctx = document.getElementById("stockChart").getContext("2d");
 
-
-    const ctx =
-        document
-            .getElementById(
-                "stockChart"
-            )
-            .getContext(
-                "2d"
-            );
-
-
-    if (
-        stockChartInstance
-    ) {
-
+    if (stockChartInstance) {
         stockChartInstance.destroy();
-
     }
 
+    // Text in the middle of the doughnut
+    const centerText = {
+        id: "centerText",
+        afterDraw(chart) {
+            const { ctx, chartArea } = chart;
+            const x = (chartArea.left + chartArea.right) / 2;
+            const y = (chartArea.top + chartArea.bottom) / 2;
 
-    stockChartInstance =
-        new Chart(
-            ctx,
-            {
+            ctx.save();
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
 
-                type:
-                    "doughnut",
-
-                data: {
-
-                    labels: [
-
-                        "Purchased",
-
-                        "Sold"
-
-                    ],
-
-
-                    datasets: [
-
-                        {
-
-                            data: [
-
-                                totalPurchased,
-
-                                totalSold
-
-                            ]
-
-                        }
-
-                    ]
-
-                },
-
-
-                options: {
-
-                    responsive:
-                        true,
-
-                    maintainAspectRatio:
-                        false
-
-                }
-
+            if (isEmpty) {
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "500 14px Poppins, sans-serif";
+                ctx.fillText("No data yet", x, y);
+            } else {
+                ctx.fillStyle = "#1e293b";
+                ctx.font = "700 28px Poppins, sans-serif";
+                ctx.fillText(String(total), x, y - 8);
+                ctx.fillStyle = "#64748b";
+                ctx.font = "400 12px Poppins, sans-serif";
+                ctx.fillText("Total Units", x, y + 16);
             }
-        );
 
+            ctx.restore();
+        }
+    };
+
+    stockChartInstance = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: isEmpty ? ["No data"] : ["In Stock", "Sold"],
+            datasets: [{
+                data: isEmpty ? [1] : [inStock, sold],
+                backgroundColor: isEmpty ? ["#e5e7eb"] : ["#2563eb", "#10b981"],
+                borderWidth: 2,
+                borderColor: "#ffffff",
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "68%",
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { usePointStyle: true, padding: 18 }
+                },
+                tooltip: {
+                    enabled: !isEmpty,
+                    callbacks: {
+                        label: c => {
+                            const pct = total ? Math.round((c.parsed / total) * 100) : 0;
+                            return ` ${c.label}: ${c.parsed} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [centerText]
+    });
 }
 
 
@@ -1667,4 +1592,3 @@ document.addEventListener(
 </body>
 
 </html>
-
