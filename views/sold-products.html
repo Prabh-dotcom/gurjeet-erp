@@ -1726,7 +1726,10 @@ sellImei.addEventListener(
    PREVIEW STOCK
 ========================================================= */
 
+let previewRequestId = 0;
+
 async function previewStockByImei(imei) {
+    const requestId = ++previewRequestId;
     try {
         sellProductName.value = "";
         previewedStock = null;
@@ -1738,6 +1741,8 @@ async function previewStockByImei(imei) {
         );
 
         const result = await response.json();
+        if (requestId !== previewRequestId) return false; // newer lookup started
+
         if (!response.ok || !result.success) {
             throw new Error(result.message || "Product not found for this IMEI.");
         }
@@ -1747,10 +1752,14 @@ async function previewStockByImei(imei) {
 
         sellProductName.value = stock.product?.productName || "-";
         previewedStock = stock;
+        sellMessage.classList.add("d-none");   // clear any old error
+        return true;
     } catch (error) {
+        if (requestId !== previewRequestId) return false;
         sellProductName.value = "";
         previewedStock = null;
         showSellMessage(error.message || "Product not found for this IMEI.", "danger");
+        return false;
     }
 }
 
@@ -1776,10 +1785,14 @@ manualSellForm.addEventListener("submit", async function (event) {
         sellImei.focus();
         return;
     }
-    if (!previewedStock) {
-        showSellMessage("Please enter a valid IMEI and wait for the product name to appear.", "danger");
-        return;
+    // Lookup may still be running (blur fires right before submit) - wait for it
+    if (!previewedStock || previewedStock.imei !== imei) {
+        await previewStockByImei(imei);
     }
+    if (!previewedStock) {
+        return; // previewStockByImei already showed the exact error
+    }
+    sellMessage.classList.add("d-none");
 
     if (!confirm(`Sell ${sellProductName.value || "this product"}?`)) return;
 
