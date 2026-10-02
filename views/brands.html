@@ -676,11 +676,11 @@
 
 
             const status =
-                brand.status || "Active";
+                String(brand.status || "active").toLowerCase();
 
 
             const statusBadge =
-                status === "Active"
+                status === "active"
 
                 ? `<span class="badge bg-success">
                         Active
@@ -973,7 +973,7 @@
 
 
             brandStatus.value =
-                brand.status || "Active";
+                String(brand.status || "active").toLowerCase();
 
 
             brandModalTitle.textContent =
