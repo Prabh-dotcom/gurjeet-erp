@@ -1,4 +1,3 @@
-
 const express = require("express");
 const mongoose = require("mongoose");
 
@@ -143,6 +142,30 @@ router.get("/search/imei/:imei", async (req, res) => {
                     select: "name"
                 }
             });
+
+        // Fallback: IMEI registered in Product Master but not yet in Stock
+        if (!stock) {
+            const masterProduct = await Product.findOne({
+                imei,
+                status: "active"
+            }).populate("brand", "name");
+
+            if (masterProduct) {
+                return res.json({
+                    success: true,
+                    fromProductMaster: true,
+                    data: {
+                        _id: null,
+                        product: masterProduct,
+                        imei,
+                        barcode: masterProduct.barcode || "",
+                        quantity: 1,
+                        status: "in_stock",
+                        sellingPrice: Number(masterProduct.sellingPrice || 0)
+                    }
+                });
+            }
+        }
 
         if (!stock) {
             return res.status(404).json({

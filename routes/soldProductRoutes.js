@@ -5,6 +5,7 @@ const router = express.Router();
 
 const Stock = require("../models/Stock");
 const SoldProduct = require("../models/SoldProduct");
+const Product = require("../models/Product");
 
 
 // =====================================================
@@ -107,6 +108,36 @@ router.post("/", async (req, res) => {
 
         }
 
+
+        // =================================================
+        // IMEI IN PRODUCT MASTER BUT NOT YET IN STOCK
+        // -> create the stock entry automatically
+        // =================================================
+
+        if (!stock && imei) {
+
+            const cleanImei = String(imei).trim();
+
+            const masterProduct = await Product.findOne({
+                imei: cleanImei,
+                status: "active"
+            });
+
+            if (masterProduct) {
+
+                stock = await Stock.create({
+                    product: masterProduct._id,
+                    barcode: masterProduct.barcode || `IMEI-${cleanImei}`,
+                    imei: cleanImei,
+                    quantity: 1,
+                    status: "in_stock",
+                    purchasePrice: 0,
+                    sellingPrice: Number(masterProduct.sellingPrice || 0)
+                });
+
+            }
+
+        }
 
         // =================================================
         // STOCK NOT FOUND
