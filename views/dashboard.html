@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 
@@ -603,7 +602,7 @@ const STOCK_API =
     "/api/stock";
 
 const PURCHASE_API =
-    "/api/purchase";
+    "/api/sales";
 
 const SOLD_API =
     "/api/sold-products";
@@ -713,7 +712,12 @@ async function loadDashboard() {
 
                     apiFetch(BRAND_API),
 
-                    apiFetch(STOCK_API),
+                    // includeSold=true so we get EVERY stock item ever
+                    // created (in_stock + sold + reserved + damaged +
+                    // returned) from a single source of truth. This lets
+                    // us build an accurate "current stock vs sold" split
+                    // instead of comparing two unrelated collections.
+                    apiFetch(`${STOCK_API}?includeSold=true`),
 
                     apiFetch(PURCHASE_API),
 
@@ -739,10 +743,17 @@ async function loadDashboard() {
                 : [];
 
 
-        const stocks =
+        const allStocks =
             results[2].status === "fulfilled"
                 ? results[2].value.data || []
                 : [];
+
+        // Stock cards / brand chart only care about items that are
+        // currently available (not yet sold)
+        const stocks =
+            allStocks.filter(
+                item => item.status !== "sold"
+            );
 
 
         const purchases =
@@ -1008,8 +1019,7 @@ async function loadDashboard() {
         // =============================================
 
         createStockChart(
-            stocks,
-            soldProducts
+            allStocks
         );
 
 
@@ -1124,15 +1134,15 @@ function createBrandChart(stocks) {
 // STOCK VS SOLD CHART
 // =====================================================
 
-function createStockChart(stocks, soldProducts) {
+function createStockChart(allStocks) {
 
-    const inStock = stocks
+    const inStock = allStocks
         .filter(s => s.status !== "sold")
         .reduce((t, s) => t + Number(s.quantity || 0), 0);
 
-    const sold = soldProducts
-        .filter(s => (s.status || "sold") === "sold")
-        .reduce((t, s) => t + Number(s.quantity || 1), 0);
+    const sold = allStocks
+        .filter(s => s.status === "sold")
+        .reduce((t, s) => t + Number(s.quantity || 0), 0);
 
     const total = inStock + sold;
     const isEmpty = total === 0;
@@ -1581,6 +1591,26 @@ document.addEventListener(
     function () {
 
         loadDashboard();
+
+        // =============================================
+        // AUTO REFRESH (REAL-TIME UPDATES)
+        // Re-pull data every 20 seconds so the cards and
+        // charts stay current without a manual refresh.
+        // Paused while the tab is hidden to save requests.
+        // =============================================
+
+        setInterval(
+            function () {
+
+                if (!document.hidden) {
+
+                    loadDashboard();
+
+                }
+
+            },
+            20000
+        );
 
     }
 );
