@@ -51,6 +51,18 @@ const productSchema = new mongoose.Schema(
             trim: true
         },
 
+        imei: {
+            type: String,
+            trim: true,
+            default: undefined,
+            validate: {
+                validator: function (value) {
+                    return !value || /^\d{15}$/.test(value);
+                },
+                message: "IMEI must contain exactly 15 digits"
+            }
+        },
+
         imeiRequired: {
             type: Boolean,
             default: true

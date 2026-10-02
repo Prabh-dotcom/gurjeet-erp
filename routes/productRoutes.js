@@ -10,10 +10,6 @@ router.get("/test", (req, res) => {
     });
 });
 
-// =====================================================
-// CREATE PRODUCT
-// =====================================================
-
 router.post("/", async (req, res) => {
     try {
         const productData = req.body;
@@ -46,8 +42,7 @@ router.post("/", async (req, res) => {
             });
         }
 
-        // Selling Price is NOT required.
-        // Product.js should have sellingPrice default: 0.
+        // Selling price is optional (defaults to 0 in model)
 
         const product = await Product.create(productData);
 
@@ -66,23 +61,14 @@ router.post("/", async (req, res) => {
     }
 });
 
-// =====================================================
-// GET ALL PRODUCTS
-// =====================================================
-
 router.get("/", async (req, res) => {
     try {
         const { brand, category, search } = req.query;
 
         const filter = {};
 
-        if (brand) {
-            filter.brand = brand;
-        }
-
-        if (category) {
-            filter.category = category;
-        }
+        if (brand) filter.brand = brand;
+        if (category) filter.category = category;
 
         if (search) {
             filter.$or = [
@@ -126,10 +112,6 @@ router.get("/", async (req, res) => {
     }
 });
 
-// =====================================================
-// GET SINGLE PRODUCT
-// =====================================================
-
 router.get("/:id", async (req, res) => {
     try {
         const product = await Product.findById(req.params.id)
@@ -155,10 +137,6 @@ router.get("/:id", async (req, res) => {
         });
     }
 });
-
-// =====================================================
-// UPDATE PRODUCT
-// =====================================================
 
 router.put("/:id", async (req, res) => {
     try {
@@ -192,10 +170,6 @@ router.put("/:id", async (req, res) => {
         });
     }
 });
-
-// =====================================================
-// DELETE PRODUCT
-// =====================================================
 
 router.delete("/:id", async (req, res) => {
     try {
