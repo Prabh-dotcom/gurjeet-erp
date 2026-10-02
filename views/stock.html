@@ -472,7 +472,7 @@
 
                                 <th>Status</th>
 
-                                <th width="160">
+                                <th width="200">
                                     Action
                                 </th>
 
@@ -721,6 +721,48 @@
 
 
 
+
+<!-- ================= EDIT STOCK MODAL ================= -->
+
+<div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <input type="hidden" id="editStockId">
+
+                <div class="mb-3">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" min="0" step="1" class="form-control" id="editQuantity">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Purchase Price (₹)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="editPurchasePrice">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Selling Price (₹)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="editSellingPrice">
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveStockButton">Save</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
 <!-- ================= BOOTSTRAP JS ================= -->
 
 <script
@@ -747,6 +789,8 @@ const BRAND_API = "/api/brands";
 let allStock = [];
 
 let allBrands = [];
+
+let stockSummary = null;
 
 
 // =====================================================
@@ -933,8 +977,10 @@ async function loadStock() {
         `;
 
 
+        // FIX: include sold records, otherwise "Sold" card and the
+        // Sold filter were always 0 / empty.
         const response =
-            await fetch(STOCK_API);
+            await fetch(`${STOCK_API}?includeSold=true`);
 
 
         const result =
@@ -953,6 +999,9 @@ async function loadStock() {
 
         allStock =
             result.data || [];
+
+        stockSummary =
+            result.summary || null;
 
 
         renderStock();
@@ -1078,8 +1127,9 @@ function renderStock() {
 
 
                 const matchesStatus =
-                    !status ||
-                    item.status === status;
+                    status
+                        ? item.status === status
+                        : item.status !== "sold";
 
 
                 return (
@@ -1217,16 +1267,12 @@ function renderStock() {
 
 
                             <td>
-                                ₹${Number(
-                                    item.purchasePrice || 0
-                                ).toLocaleString("en-IN")}
+                                ${formatPrice(item.purchasePrice)}
                             </td>
 
 
                             <td>
-                                ₹${Number(
-                                    item.sellingPrice || 0
-                                ).toLocaleString("en-IN")}
+                                ${formatPrice(item.sellingPrice)}
                             </td>
 
 
@@ -1246,6 +1292,17 @@ function renderStock() {
                                     title="View">
 
                                     <i class="fa-solid fa-eye"></i>
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-success me-1"
+                                    onclick="editStock('${item._id}')"
+                                    title="Edit Qty / Price">
+
+                                    <i class="fa-solid fa-pen"></i>
 
                                 </button>
 
@@ -1579,6 +1636,24 @@ async function deleteStock(id) {
 
 function updateSummary() {
 
+    if (stockSummary) {
+
+        document.getElementById("totalRecords").textContent =
+            stockSummary.total;
+
+        document.getElementById("inStockRecords").textContent =
+            stockSummary.inStock;
+
+        document.getElementById("soldRecords").textContent =
+            stockSummary.sold;
+
+        document.getElementById("otherRecords").textContent =
+            stockSummary.other;
+
+        return;
+
+    }
+
     const total =
         allStock.length;
 
@@ -1789,6 +1864,127 @@ function clearProductInfo() {
 
 }
 
+
+
+// =====================================================
+// FORMAT PRICE (0 / missing => "Not set", not a fake Rs.0)
+// =====================================================
+
+function formatPrice(value) {
+
+    const amount = Number(value);
+
+    if (!amount) {
+
+        return '<span class="text-muted">Not set</span>';
+
+    }
+
+    return "₹" + amount.toLocaleString("en-IN");
+
+}
+
+
+// =====================================================
+// EDIT STOCK (quantity / prices)
+// =====================================================
+
+function editStock(id) {
+
+    const item = allStock.find(
+        row => String(row._id) === String(id)
+    );
+
+    if (!item) {
+
+        return;
+
+    }
+
+    document.getElementById("editStockId").value = id;
+
+    document.getElementById("editQuantity").value =
+        item.quantity ?? 0;
+
+    document.getElementById("editPurchasePrice").value =
+        item.purchasePrice || "";
+
+    document.getElementById("editSellingPrice").value =
+        item.sellingPrice || "";
+
+    bootstrap.Modal
+        .getOrCreateInstance(
+            document.getElementById("editStockModal")
+        )
+        .show();
+
+}
+
+
+document
+    .getElementById("saveStockButton")
+    .addEventListener(
+        "click",
+        async function () {
+
+            const id =
+                document.getElementById("editStockId").value;
+
+            const body = {
+                quantity:
+                    document.getElementById("editQuantity").value,
+                purchasePrice:
+                    document.getElementById("editPurchasePrice").value || 0,
+                sellingPrice:
+                    document.getElementById("editSellingPrice").value || 0
+            };
+
+            try {
+
+                const response =
+                    await fetch(
+                        `${STOCK_API}/${id}`,
+                        {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(body)
+                        }
+                    );
+
+                const result =
+                    await response.json();
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        result.message ||
+                        "Failed to update stock"
+                    );
+
+                }
+
+                bootstrap.Modal
+                    .getInstance(
+                        document.getElementById("editStockModal")
+                    )
+                    .hide();
+
+                await loadStock();
+
+            }
+
+            catch (error) {
+
+                console.error("Update Stock Error:", error);
+
+                alert("Error: " + error.message);
+
+            }
+
+        }
+    );
 
 // =====================================================
 // ESCAPE HTML
